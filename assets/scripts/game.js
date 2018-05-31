@@ -22,6 +22,7 @@ var difficulty = START_DIFFICULTY;
 var isGameOver = false;
 var isRoundOn = false;
 var isLosingLife = false;
+var isBetterScore = false;
 
 var score = 0;
 var highScore = 0;
@@ -112,12 +113,20 @@ function create () {
 
     scoreText = game.add.bitmapText(SCREEN_WIDTH / 2 - 32, SCREEN_HEIGHT - 16, "font", score.toString(), 8);
 	scoreText.anchor.setTo(0.5);
+	scoreText.flashing = game.add.tween(scoreText).to({
+		alpha: 0
+	}, 500, "Linear", true, 0, -1, true);
+	scoreText.flashing.pause();
 	
 	savedScore = localStorage.getItem(localStorageName) == null ? {score: 0} : JSON.parse(localStorage.getItem(localStorageName));
 	highScore = savedScore.score;
 	highScoreText = game.add.bitmapText(SCREEN_WIDTH / 2 + 32, SCREEN_HEIGHT - 16, "font", highScore.toString(), 8);
 	highScoreText.anchor.setTo(0.5);
 	highScoreText.alpha = 0.5;
+	highScoreText.flashing = game.add.tween(highScoreText).to({
+		alpha: 0
+	}, 500, "Linear", true, 0, -1, true);
+	highScoreText.flashing.pause();
 	//highScoreText.tint = 0x444;
 }
 
@@ -132,6 +141,7 @@ function update () {
 		scoreToExtraLife += difficulty;
 		if (score >= highScore) {
 			highScore = score;
+			isBetterScore = true;
 		}
 		//console.log("Score: " + scoreText.text + " vs " + score);
 		//console.log("High Score: " + highScoreText.text + " vs " + highScore);
@@ -186,6 +196,10 @@ function startRound() {
 
 	} else if (isGameOver) {
 		bucket.visible = true;
+		highScoreText.flashing.pause();
+		highScoreText.alpha = 0.5;
+		scoreText.flashing.pause();
+		scoreText.alpha = 1;
 		score = 0;
 		scoreText.text = score.toString();
 		scoreToExtraLife = 0;
@@ -194,6 +208,9 @@ function startRound() {
 		bucket.animations.frame = 2;
 		bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
 		isGameOver = false;
+		isBetterScore = false;
+		savedScore = localStorage.getItem(localStorageName) == null ? {score: 0} : JSON.parse(localStorage.getItem(localStorageName));
+		highScore = savedScore.score;
 	}
 	bucket.canSwipe = true;
 }
@@ -245,7 +262,12 @@ function checkNextRound () {
 			} else {
 				isGameOver = true;
 				bucket.visible = false;
+				if (isBetterScore) {
+					highScoreText.flashing.resume();
+					scoreText.flashing.resume();
+				}
 				highScore = Math.max(score, savedScore.score);
+				console.log(highScore);
 				//highScore = 0; //debug
                 localStorage.setItem(localStorageName, JSON.stringify({
                     score: highScore
