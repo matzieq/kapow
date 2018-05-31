@@ -1,13 +1,10 @@
-
+"use strict";
 
 var SCREEN_WIDTH = 256;
 var SCREEN_HEIGHT = 160;
 var MAX_SWIPE_SPEED = 500;
-console.log (window.innerWidth);
 var MIN_SWIPE_SPEED = 10;
 var SWIPE_MULTIPLIER = Math.floor(window.innerWidth / 200);
-console.log (SWIPE_MULTIPLIER);
-console.log(MIN_SWIPE_SPEED);
 var START_BOMBS = 8
 var BOMB_MULTIPLIER = 0.2;
 var DIFFICULTY_INCREASE = 20;
@@ -22,16 +19,20 @@ var bucket;
 var bombs;
 var bombTimer;
 var difficulty = START_DIFFICULTY;
-var round = 1;
 var isGameOver = false;
 var isRoundOn = false;
 var isLosingLife = false;
 
 var score = 0;
+var highScore = 0;
 var scoreToExtraLife = 0;
 var extraLives = 0;
 var scoreText;
+var highScoreText;
 var extraLifeAcquired = 5000;
+
+var savedScore;
+var localStorageName = "high_score";
 
 function preload() {
 	game.load.spritesheet("bomber", "assets/sprites/bomber_strip2.png", 16, 32, 2);
@@ -44,15 +45,10 @@ function preload() {
 	game.load.audio("extra", "assets/sounds/a_extra.ogg", "assets/sounds/a_extra.mp3");
 	game.load.bitmapFont("font", "assets/fonts/font.png", "assets/fonts/font.fnt");
 
-
-	//set scale
-	//game.scale.setUserScale(3, 3);
-
 	// enable crisp rendering
 	game.renderer.renderSession.roundPixels = true;
 	Phaser.Canvas.setImageRenderingCrisp(game.canvas);
 	game.stage.backgroundColor = "#00ccff";
-	//window.screen.lockOrientation(landscape);
 }
 
 function create () {
@@ -90,11 +86,14 @@ function create () {
 	bucket.body.collideWorldBounds = true;
 	bucket.body.drag.x = 300;
 	bucket.body.immovable = true;
-	bucket.body.setSize(bucket.width, bucket.height - 10, 0, 10)
-	bucket.animations.add("idle", [0, 1, 2], 0);
 
+	//the bucket sprite has some space on the top, we need to counteract that
+	bucket.body.setSize(bucket.width, bucket.height - 10, 0, 10) 
+	bucket.animations.add("idle", [0, 1, 2], 0);
 	bucket.animations.play("idle");
-	bucket.animations.frame = 2;
+
+	//the current frame is used both to display the correct number of buckets and as a life counter
+	bucket.animations.frame = 2;	
 
 	bucket.relativeX = bucket.x;
 	bucket.canSwipe = false;
@@ -111,8 +110,15 @@ function create () {
     bombs = game.add.group();
     bombs.bombCount = difficulty * BOMB_MULTIPLIER + START_BOMBS; //this many per round
 
-    scoreText = game.add.bitmapText(SCREEN_WIDTH / 2, SCREEN_HEIGHT - 16, "font", score.toString(), 8);
-    scoreText.anchor.setTo(0.5);
+    scoreText = game.add.bitmapText(SCREEN_WIDTH / 2 - 32, SCREEN_HEIGHT - 16, "font", score.toString(), 8);
+	scoreText.anchor.setTo(0.5);
+	
+	savedScore = localStorage.getItem(localStorageName) == null ? {score: 0} : JSON.parse(localStorage.getItem(localStorageName));
+	highScore = savedScore.score;
+	highScoreText = game.add.bitmapText(SCREEN_WIDTH / 2 + 32, SCREEN_HEIGHT - 16, "font", highScore.toString(), 8);
+	highScoreText.anchor.setTo(0.5);
+	highScoreText.alpha = 0.5;
+	//highScoreText.tint = 0x444;
 }
 
 function update () {
@@ -124,7 +130,13 @@ function update () {
 		game.gulpSound.play();
 		score += difficulty;
 		scoreToExtraLife += difficulty;
+		if (score >= highScore) {
+			highScore = score;
+		}
+		//console.log("Score: " + scoreText.text + " vs " + score);
+		//console.log("High Score: " + highScoreText.text + " vs " + highScore);
 		scoreText.text = score.toString();
+		highScoreText.text = highScore.toString();
 		if (scoreToExtraLife >= extraLifeAcquired) {
 			scoreToExtraLife -= extraLifeAcquired;
 			extraLives++;
@@ -139,6 +151,7 @@ function update () {
 		bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
 		game.extraSound.play();
 	}
+	
 }
 
 function requestLock() {
@@ -150,13 +163,11 @@ function move(pointer, x, y, click) {
     //  If the cursor is locked to the game, and the callback was not fired from a 'click' event
     //  (such as a mouse click or touch down) - as then it might contain incorrect movement values
     if (Phaser.Device.desktop && game.input.mouse.locked && !click) {
+		//mouse clamping
         bucket.x += game.input.mouse.event.movementX / 2;
     } else if (!game.device.desktop && bucket.canSwipe) {
+		//swipe movement
     	var swipeDistance = game.input.activePointer.position.x - game.input.activePointer.positionDown.x;
-
-    	// if (Math.abs(swipeDistance) < MAX_SWIPE_SPEED && Math.abs(swipeDistance) > MIN_SWIPE_SPEED) {
-    	// 	bucket.body.velocity.x = swipeDistance;
-    	// }
     	console.log("Relative X: " + bucket.relativeX);
     	console.log("Swipedist: " + swipeDistance);
 	    	bucket.x = bucket.relativeX + swipeDistance * SWIPE_MULTIPLIER;
@@ -165,16 +176,24 @@ function move(pointer, x, y, click) {
 
 function startRound() {
 	if (!isRoundOn && !isGameOver && !bomber.isMoving) {
-		//console.log(isRoundOn);
 		bomber.isMoving = true;
 		bomber.animations.play("idle");
 		isRoundOn = true;
-		//console.log(isRoundOn);
 		bombs.bombCount = difficulty * BOMB_MULTIPLIER + START_BOMBS;
 		bombTimer = game.time.create(true);
 		bombTimer.repeat(200, bombs.bombCount, createBomb, this);
 		bombTimer.start();
 
+	} else if (isGameOver) {
+		bucket.visible = true;
+		score = 0;
+		scoreText.text = score.toString();
+		scoreToExtraLife = 0;
+		extraLives = 0;
+		extraLifeAcquired = 5000;
+		bucket.animations.frame = 2;
+		bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
+		isGameOver = false;
 	}
 	bucket.canSwipe = true;
 }
@@ -192,7 +211,9 @@ function createBomb () {
 	} else {
 		bomber.body.velocity.x = -50 - difficulty;
 	}
-	bombs.bombCount--;
+	bombs.bombCount--;			
+	
+	//this is to reset the bomb counter after the player loses a life
 	if (bombs.length == 0) {
 		bombs.bombCount = 0;
 	}
@@ -223,6 +244,12 @@ function checkNextRound () {
 				bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
 			} else {
 				isGameOver = true;
+				bucket.visible = false;
+				highScore = Math.max(score, savedScore.score);
+				//highScore = 0; //debug
+                localStorage.setItem(localStorageName, JSON.stringify({
+                    score: highScore
+                }));
 			}
 			if (difficulty > 2 * DIFFICULTY_INCREASE) {
 				difficulty -= DIFFICULTY_INCREASE * 2;
@@ -248,6 +275,6 @@ function checkBombs () {
 		bombTimer.pause();
 		bombs.bombCount = 0;
 		//isLosingLife = false;
-		console.log("Losing! " + bombs.length + "Bomb count: " + bombs.bombCount);
+		//console.log("Losing! " + bombs.length + "Bomb count: " + bombs.bombCount);
 	}
 }
