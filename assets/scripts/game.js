@@ -1,6 +1,6 @@
 "use strict";
 
-var SCREEN_WIDTH = 256;
+var SCREEN_WIDTH = 312;
 var SCREEN_HEIGHT = 160;
 var MAX_SWIPE_SPEED = 500;
 var MIN_SWIPE_SPEED = 10;
@@ -8,7 +8,7 @@ var SWIPE_MULTIPLIER = Math.floor(window.innerWidth / 200);
 var START_BOMBS = 8
 var BOMB_MULTIPLIER = 0.2;
 var DIFFICULTY_INCREASE = 20;
-var START_DIFFICULTY = 10;
+var START_DIFFICULTY = 1;
 
 
 var game = new Phaser.Game(SCREEN_WIDTH, SCREEN_HEIGHT, Phaser.CANVAS, "kibel",
@@ -226,6 +226,7 @@ function createBomb () {
 	bomb.body.velocity.y = 50 + difficulty;
 	bomb.animations.add("idle", [0, 1], 30, true);
 	bomb.animations.play("idle");
+	bomb.anchor.setTo(0.5);
 	bombs.add(bomb);
 	if (game.rnd.integerInRange(0, 1) === 1) {
 		bomber.body.velocity.x = 50 + difficulty;
