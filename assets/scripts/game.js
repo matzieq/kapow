@@ -168,6 +168,7 @@ function update () {
 		extraLives--;
 		bucket.animations.frame++;
 		bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
+		game.add.tween(bucket).to({ alpha: 0.5}, 100, "Linear", true, 0, 1, true);
 		game.extraSound.play();
 	}
 	
