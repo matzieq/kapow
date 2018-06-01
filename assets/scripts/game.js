@@ -23,6 +23,7 @@ var isGameOver = false;
 var isRoundOn = false;
 var isLosingLife = false;
 var isBetterScore = false;
+var isGameOn = false;
 
 var score = 0;
 var highScore = 0;
@@ -34,6 +35,9 @@ var extraLifeAcquired = 5000;
 
 var savedScore;
 var localStorageName = "high_score";
+
+var title;
+var credits;
 
 function preload() {
 	game.load.spritesheet("bomber", "assets/sprites/bomber_strip2.png", 16, 32, 2);
@@ -135,6 +139,10 @@ function create () {
 	}, 500, "Linear", true, 0, -1, true);
 	highScoreText.flashing.pause();
 	//highScoreText.tint = 0x444;
+	title = game.add.bitmapText(SCREEN_WIDTH / 2, 40, "font", "KAPOW!", 16);
+	title.anchor.setTo(0.5);
+	credits = game.add.bitmapText(SCREEN_WIDTH / 2, 60, "font", "gfx, snd & prg - matzieq", 8);
+	credits.anchor.setTo(0.5);
 }
 
 function update () {
@@ -223,6 +231,18 @@ function startRound() {
 		highScore = savedScore.score;
 	}
 	bucket.canSwipe = true;
+
+	if (!isGameOn) {
+		game.add.tween(title).to({
+			 x: -100, 
+			 y: -200
+			}, 500, "Linear", true);
+		game.add.tween(credits).to({
+			x: 500, 
+			y: 700
+			}, 500, "Linear", true);
+		isGameOn = true;		
+	}
 }
 
 function createBomb () {
