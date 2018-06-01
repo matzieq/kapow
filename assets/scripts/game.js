@@ -44,6 +44,7 @@ function preload() {
 	game.load.audio("gulp", "assets/sounds/a_gulp.ogg", "assets/sounds/a_gulp.mp3");
 	game.load.audio("kaboom", "assets/sounds/a_kaboom.ogg", "assets/sounds/a_kaboom.mp3");
 	game.load.audio("extra", "assets/sounds/a_extra.ogg", "assets/sounds/a_extra.mp3");
+	game.load.audio("hiscore", "assets/sounds/a_hiscore.ogg", "assets/sounds/a_hiscore.mp3");
 	game.load.bitmapFont("font", "assets/fonts/font.png", "assets/fonts/font.fnt");
 
 	// enable crisp rendering
@@ -64,6 +65,7 @@ function create () {
     game.gulpSound = game.add.audio("gulp");
     game.kaboomSound = game.add.audio("kaboom");
     game.extraSound = game.add.audio("extra");
+    game.hiscoreSound = game.add.audio("hiscore");
 	
 	//creating grass background
 	var grass = game.add.sprite(0, 16, "grass");
@@ -151,6 +153,8 @@ function update () {
 			scoreToExtraLife -= extraLifeAcquired;
 			extraLives++;
 			extraLifeAcquired += 1000;
+			game.extraSound.play();
+			game.add.tween(scoreText).to({ alpha: 0 }, 10, "Linear", true, 0, 10, true);
 		}
 		bomb.destroy();
 	}, this);
@@ -265,6 +269,7 @@ function checkNextRound () {
 				if (isBetterScore) {
 					highScoreText.flashing.resume();
 					scoreText.flashing.resume();
+					game.hiscoreSound.play();
 				}
 				highScore = Math.max(score, savedScore.score);
 				console.log(highScore);
