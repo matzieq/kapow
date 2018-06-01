@@ -146,7 +146,6 @@ function create () {
 }
 
 function update () {
-	//console.log(isRoundOn);
 	bounce (bomber);
 	checkNextRound();
 	checkBombs();
@@ -158,8 +157,6 @@ function update () {
 			highScore = score;
 			isBetterScore = true;
 		}
-		//console.log("Score: " + scoreText.text + " vs " + score);
-		//console.log("High Score: " + highScoreText.text + " vs " + highScore);
 		scoreText.text = score.toString();
 		highScoreText.text = highScore.toString();
 		if (scoreToExtraLife >= extraLifeAcquired) {
@@ -196,23 +193,25 @@ function move(pointer, x, y, click) {
     } else if (!game.device.desktop && bucket.canSwipe) {
 		//swipe movement
     	var swipeDistance = game.input.activePointer.position.x - game.input.activePointer.positionDown.x;
-    	console.log("Relative X: " + bucket.relativeX);
-    	console.log("Swipedist: " + swipeDistance);
 	    	bucket.x = bucket.relativeX + swipeDistance * SWIPE_MULTIPLIER;
     }
 }
 
 function startRound() {
 	if (!isRoundOn && !isGameOver && !bomber.isMoving) {
+		//start bomber movement
 		bomber.isMoving = true;
 		bomber.animations.play("idle");
 		isRoundOn = true;
+		//more and more bombs
 		bombs.bombCount = difficulty * BOMB_MULTIPLIER + START_BOMBS;
 		bombTimer = game.time.create(true);
+		//and a timer for throwing bombs
 		bombTimer.repeat(200, bombs.bombCount, createBomb, this);
 		bombTimer.start();
 
 	} else if (isGameOver) {
+		//re-initializing all variables
 		bucket.visible = true;
 		highScoreText.flashing.pause();
 		highScoreText.alpha = 0.5;
@@ -224,6 +223,8 @@ function startRound() {
 		extraLives = 0;
 		extraLifeAcquired = 5000;
 		bucket.animations.frame = 2;
+		difficulty = START_DIFFICULTY;
+		//setting collision mask to match the current number of buckets
 		bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
 		isGameOver = false;
 		isBetterScore = false;
@@ -233,6 +234,7 @@ function startRound() {
 	bucket.canSwipe = true;
 
 	if (!isGameOn) {
+		//after clicking the first time the title and credits go away
 		game.add.tween(title).to({
 			 x: -100, 
 			 y: -200
@@ -247,6 +249,7 @@ function startRound() {
 
 function createBomb () {
 	game.throwSound.play();
+	//create a bomb, add it to group and send it flying down
 	var bomb = game.add.sprite(bomber.x, bomber.y + 8, "bomb");
 	game.physics.enable(bomb, Phaser.Physics.ARCADE);
 	bomb.body.velocity.y = 50 + difficulty;
@@ -254,6 +257,8 @@ function createBomb () {
 	bomb.animations.play("idle");
 	bomb.anchor.setTo(0.5);
 	bombs.add(bomb);
+
+	//randomly change bomber movement direction
 	if (game.rnd.integerInRange(0, 1) === 1) {
 		bomber.body.velocity.x = 50 + difficulty;
 	} else {
@@ -267,8 +272,9 @@ function createBomb () {
 	}
 }
 
+//bomber bouncing
 function bounce (spr) {
-	if ((spr.x < 8 && spr.body.velocity.x < 0) || (spr.x > SCREEN_WIDTH - 8 && spr.body.velocity.x > 0)) {
+	if ((spr.x < 12 && spr.body.velocity.x < 0) || (spr.x > SCREEN_WIDTH - 12 && spr.body.velocity.x > 0)) {
 		spr.body.velocity.x *= -1;
 	}
 }
@@ -279,13 +285,11 @@ function checkNextRound () {
 		bomber.isMoving = false;
 		if (difficulty <= 180) {
 			difficulty += DIFFICULTY_INCREASE;
-			console.log("Difficulty: " + difficulty);
 		}
 		bomber.body.velocity.x = 0;
 		if (isLosingLife) { 
 			isLosingLife = false;
 			bomber.animations.play("smiling");
-			//Phaser.Camera.shake();
 			game.kaboomSound.play();
 			if (bucket.animations.frame > 0) {
 				bucket.animations.frame --;
@@ -299,7 +303,6 @@ function checkNextRound () {
 					game.hiscoreSound.play();
 				}
 				highScore = Math.max(score, savedScore.score);
-				console.log(highScore);
 				//highScore = 0; //debug
                 localStorage.setItem(localStorageName, JSON.stringify({
                     score: highScore
@@ -328,7 +331,5 @@ function checkBombs () {
 		});
 		bombTimer.pause();
 		bombs.bombCount = 0;
-		//isLosingLife = false;
-		//console.log("Losing! " + bombs.length + "Bomb count: " + bombs.bombCount);
 	}
 }
