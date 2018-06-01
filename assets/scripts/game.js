@@ -8,7 +8,7 @@ var SWIPE_MULTIPLIER = Math.floor(window.innerWidth / 200);
 var START_BOMBS = 8
 var BOMB_MULTIPLIER = 0.2;
 var DIFFICULTY_INCREASE = 20;
-var START_DIFFICULTY = 1;
+var START_DIFFICULTY = 10;
 
 
 var game = new Phaser.Game(SCREEN_WIDTH, SCREEN_HEIGHT, Phaser.CANVAS, "kibel",
@@ -106,7 +106,12 @@ function create () {
     game.input.addMoveCallback(move, this);
     game.input.onDown.add(startRound, this);
     game.input.onUp.add(function () {
-    	bucket.relativeX = bucket.x;
+		bucket.relativeX = bucket.x;
+		if (bucket.relativeX < 0) {
+			bucket.relativeX = 0;
+		} else if (bucket.relativeX > SCREEN_WIDTH) {
+			bucket.relativeX = SCREEN_WIDTH;
+		}
     	bucket.canSwipe = false;
     }, this);
 
