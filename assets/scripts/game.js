@@ -1,5 +1,9 @@
 "use strict";
 
+/***********\
+| CONSTANTS |
+\***********/
+
 var SCREEN_WIDTH = 312;
 var SCREEN_HEIGHT = 160;
 var MAX_SWIPE_SPEED = 500;
@@ -9,46 +13,71 @@ var START_BOMBS = 8
 var BOMB_MULTIPLIER = 0.2;
 var DIFFICULTY_INCREASE = 20;
 var START_DIFFICULTY = 10;
+var EXTRA_LIFE_INCREMENT = 1000; //the score required to get an extra life increases by this each time you get one
+var BUCKET_DRAG = 300;
 
+/***********\
+| VARIABLES |
+\***********/
 
+//GAME
 var game = new Phaser.Game(SCREEN_WIDTH, SCREEN_HEIGHT, Phaser.CANVAS, "kibel",
 	{preload: preload, create: create, update: update});
 
+
+//GAME OBJECTS
 var bomber;
 var bucket;
 var bombs;
-var bombTimer;
-var difficulty = START_DIFFICULTY;
-var isGameOver = false;
-var isRoundOn = false;
-var isLosingLife = false;
-var isBetterScore = false;
-var isGameOn = false;
+var grass;
 
+//TIMERS
+var bombTimer;
+
+//PARAMETERS
+var difficulty = START_DIFFICULTY;
 var score = 0;
 var highScore = 0;
-var scoreToExtraLife = 0;
-var extraLives = 0;
-var scoreText;
-var highScoreText;
-var extraLifeAcquired = 5000;
+var scoreToExtraLife;
+var extraLives;
+var extraLifeAcquired;
 
+//FLAGS
+var isGameOver;
+var isRoundOn = false;
+var isLosingLife = false;
+var isBetterScore;
+var isGameOn = false;
+
+
+//STORAGE
 var savedScore;
 var localStorageName = "high_score";
 
+//TEXT OBJECTS
+var scoreText;
+var highScoreText;
 var title;
 var credits;
+
+
+/******\
+| MAIN |
+\******/
 
 function preload() {
 	game.load.spritesheet("bomber", "assets/sprites/bomber_strip2.png", 16, 32, 2);
 	game.load.spritesheet("bucket", "assets/sprites/bucket_strip3.png", 16, 32, 3);
 	game.load.spritesheet("bomb", "assets/sprites/bomb_strip2.png", 8, 8, 2);
+
 	game.load.image("grass", "assets/sprites/b_grass.png", 64, 64);
+
 	game.load.audio("throw", "assets/sounds/a_throw.ogg", "assets/sounds/a_throw.mp3");
 	game.load.audio("gulp", "assets/sounds/a_gulp.ogg", "assets/sounds/a_gulp.mp3");
 	game.load.audio("kaboom", "assets/sounds/a_kaboom.ogg", "assets/sounds/a_kaboom.mp3");
 	game.load.audio("extra", "assets/sounds/a_extra.ogg", "assets/sounds/a_extra.mp3");
 	game.load.audio("hiscore", "assets/sounds/a_hiscore.ogg", "assets/sounds/a_hiscore.mp3");
+
 	game.load.bitmapFont("font", "assets/fonts/font.png", "assets/fonts/font.fnt");
 
 	// enable crisp rendering
@@ -58,25 +87,72 @@ function preload() {
 }
 
 function create () {
+	adjustGameScale();
+    initializeSounds();
+	createBackground();
+	createBomber();
+	createBucket();
+	initializeBucketAnimation();
+	initializeVariables();
+	adjustBucketCollisionMask();
+	initializeBucketMovement();
+	createBombs();
+	createScoreText();
+	loadHighScore();
+	createHighScoreText();
+	showCredits();
+	adjustText();
+}
 
-	//technical stuff
+function update () {
+	bounceBomber();
+	checkNextRound();
+	checkBombs();
+	checkCollisions();
+	addExtraLife();
+}
+
+/***********\
+| FUNCTIONS |
+\***********/
+
+function initializeVariables () {
+	//the current bucket frame is used both to display the correct number of buckets and as a life counter
+	bucket.animations.frame = 2;
+	bucket.relativeX = bucket.x;
+	bucket.canSwipe = false;
+	bucket.visible = true;
+	isGameOver = false;
+	isBetterScore = false;
+	score = 0;
+	scoreToExtraLife = 0;
+	extraLives = 0;
+	extraLifeAcquired = 5000;
+	difficulty = START_DIFFICULTY;
+
+}
+
+function adjustGameScale () {
 	game.scale.pageAlignHorizontally = true;
     game.scale.pageAlignVertically = true;
 	game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+}
 
-    //initializing sounds
-    game.throwSound = game.add.audio("throw");
+function initializeSounds () {
+	game.throwSound = game.add.audio("throw");
     game.gulpSound = game.add.audio("gulp");
     game.kaboomSound = game.add.audio("kaboom");
     game.extraSound = game.add.audio("extra");
     game.hiscoreSound = game.add.audio("hiscore");
-	
-	//creating grass background
-	var grass = game.add.sprite(0, 16, "grass");
+}
+
+function createBackground () {
+	grass = game.add.sprite(0, 16, "grass");
 	grass.width = SCREEN_WIDTH;
 	grass.height = SCREEN_HEIGHT;
+}
 
-	//creating bomber
+function createBomber () {
 	bomber = game.add.sprite(132, 16, "bomber");
 	game.physics.enable(bomber, Phaser.Physics.ARCADE);
 	bomber.anchor.setTo(0.5);
@@ -84,99 +160,128 @@ function create () {
 	bomber.animations.add("smiling", [1]);
 	bomber.animations.play("idle");
 	bomber.isMoving = false; //flag to check whether the bomber is currently dropping bombs
-	
+}
 
-	//creating bucket
+function createBucket () {
 	bucket = game.add.sprite(132, 108, "bucket");
 	game.physics.enable(bucket, Phaser.Physics.ARCADE);
 	bucket.anchor.setTo(0.5);
 	bucket.body.collideWorldBounds = true;
-	bucket.body.drag.x = 300;
+	bucket.body.drag.x = BUCKET_DRAG;
 	bucket.body.immovable = true;
+}
 
-	//the bucket sprite has some space on the top, we need to counteract that
-	bucket.body.setSize(bucket.width, bucket.height - 10, 0, 10) 
+function initializeBucketAnimation () {
 	bucket.animations.add("idle", [0, 1, 2], 0);
 	bucket.animations.play("idle");
+}
 
-	//the current frame is used both to display the correct number of buckets and as a life counter
-	bucket.animations.frame = 2;	
+function adjustBucketCollisionMask () {
+	bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
+}
 
-	bucket.relativeX = bucket.x;
-	bucket.canSwipe = false;
-
-	//setting up bucket movement
+function initializeBucketMovement () {
 	game.canvas.addEventListener('mousedown', requestLock);
     game.input.addMoveCallback(move, this);
-    game.input.onDown.add(startRound, this);
-    game.input.onUp.add(function () {
-		bucket.relativeX = bucket.x;
-		if (bucket.relativeX < 0) {
-			bucket.relativeX = 0;
-		} else if (bucket.relativeX > SCREEN_WIDTH) {
-			bucket.relativeX = SCREEN_WIDTH;
-		}
-    	bucket.canSwipe = false;
-    }, this);
+    game.input.onDown.add(startRound, this); //start game on touch
+    resetTouchOnUp();  //if the player lifts their finger, we need to reset the relative position variable used for swiping, so that the touch works no matter where they put their finger again
+}
 
-    bombs = game.add.group();
+function createBombs () {
+	bombs = game.add.group();
     bombs.bombCount = difficulty * BOMB_MULTIPLIER + START_BOMBS; //this many per round
+}
 
-    scoreText = game.add.bitmapText(SCREEN_WIDTH / 2 - 32, SCREEN_HEIGHT - 16, "font", score.toString(), 8);
+function createScoreText () {
+	scoreText = game.add.bitmapText(SCREEN_WIDTH / 2 - 32, SCREEN_HEIGHT - 16, "font", score.toString(), 8);
 	scoreText.anchor.setTo(0.5);
 	scoreText.flashing = game.add.tween(scoreText).to({
 		alpha: 0
 	}, 500, "Linear", true, 0, -1, true);
-	scoreText.flashing.pause();
-	
+}
+
+function loadHighScore () {
 	savedScore = localStorage.getItem(localStorageName) == null ? {score: 0} : JSON.parse(localStorage.getItem(localStorageName));
 	highScore = savedScore.score;
+}
+
+function createHighScoreText () {
 	highScoreText = game.add.bitmapText(SCREEN_WIDTH / 2 + 32, SCREEN_HEIGHT - 16, "font", highScore.toString(), 8);
 	highScoreText.anchor.setTo(0.5);
-	highScoreText.alpha = 0.5;
 	highScoreText.flashing = game.add.tween(highScoreText).to({
 		alpha: 0
 	}, 500, "Linear", true, 0, -1, true);
-	highScoreText.flashing.pause();
-	//highScoreText.tint = 0x444;
+}
+
+function showCredits () {
 	title = game.add.bitmapText(SCREEN_WIDTH / 2, 40, "font", "KAPOW!", 16);
 	title.anchor.setTo(0.5);
 	credits = game.add.bitmapText(SCREEN_WIDTH / 2, 60, "font", "gfx, snd & prg - matzieq", 8);
 	credits.anchor.setTo(0.5);
 }
 
-function update () {
-	bounce (bomber);
-	checkNextRound();
-	checkBombs();
-	game.physics.arcade.collide(bucket, bombs, null, function(bucket, bomb) {
+function checkCollisions () {
+	//bucket catching bombs
+	game.physics.arcade.collide(bucket, bombs, null, function(bucket, bomb) { 
 		game.gulpSound.play();
-		score += difficulty;
-		scoreToExtraLife += difficulty;
-		if (score >= highScore) {
-			highScore = score;
-			isBetterScore = true;
-		}
-		scoreText.text = score.toString();
-		highScoreText.text = highScore.toString();
-		if (scoreToExtraLife >= extraLifeAcquired) {
-			scoreToExtraLife -= extraLifeAcquired;
-			extraLives++;
-			extraLifeAcquired += 1000;
-			game.extraSound.play();
-			game.add.tween(scoreText).to({ alpha: 0 }, 10, "Linear", true, 0, 10, true);
-		}
+		adjustScore();
+		checkHighScore();
+		adjustText();
+		checkExtraLife();		
 		bomb.destroy();
 	}, this);
+}
 
+function adjustScore () {
+	score += difficulty;
+	scoreToExtraLife += difficulty;
+}
+
+function checkHighScore () {
+	if (score >= highScore) {
+		highScore = score;
+		isBetterScore = true;
+	}
+}
+
+function adjustText () {
+	highScoreText.flashing.pause();
+	highScoreText.alpha = 0.5;
+	scoreText.flashing.pause();
+	scoreText.alpha = 1;
+	scoreText.text = score.toString();
+	highScoreText.text = highScore.toString();
+}
+
+function checkExtraLife () {
+	if (scoreToExtraLife >= extraLifeAcquired) {
+		scoreToExtraLife -= extraLifeAcquired;
+		extraLives++;
+		extraLifeAcquired += EXTRA_LIFE_INCREMENT;
+		game.extraSound.play();
+		game.add.tween(scoreText).to({ alpha: 0 }, 10, "Linear", true, 0, 10, true); //flashing score text
+	}
+}
+
+function addExtraLife () {
 	if (extraLives > 0 && bucket.animations.frame < 2) {
 		extraLives--;
 		bucket.animations.frame++;
-		bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
+		adjustBucketCollisionMask();
 		game.add.tween(bucket).to({ alpha: 0.5}, 100, "Linear", true, 0, 1, true);
 		game.extraSound.play();
 	}
-	
+}
+
+function resetTouchOnUp () {
+	game.input.onUp.add(function () {
+		bucket.relativeX = bucket.x;
+		if (bucket.relativeX < 0) { //
+		} else if (bucket.relativeX > SCREEN_WIDTH) {
+			bucket.relativeX = SCREEN_WIDTH;
+		}
+    	bucket.canSwipe = false;
+    }, this);
 }
 
 function requestLock() {
@@ -199,55 +304,53 @@ function move(pointer, x, y, click) {
 
 function startRound() {
 	if (!isRoundOn && !isGameOver && !bomber.isMoving) {
-		//start bomber movement
-		bomber.isMoving = true;
-		bomber.animations.play("idle");
 		isRoundOn = true;
-		//more and more bombs
-		bombs.bombCount = difficulty * BOMB_MULTIPLIER + START_BOMBS;
-		bombTimer = game.time.create(true);
-		//and a timer for throwing bombs
-		bombTimer.repeat(200, bombs.bombCount, createBomb, this);
-		bombTimer.start();
-
+		initializeBomberMovement();
+		setBombCount();
+		setBombTimer();
 	} else if (isGameOver) {
-		//re-initializing all variables
-		bucket.visible = true;
-		highScoreText.flashing.pause();
-		highScoreText.alpha = 0.5;
-		scoreText.flashing.pause();
-		scoreText.alpha = 1;
-		score = 0;
-		scoreText.text = score.toString();
-		scoreToExtraLife = 0;
-		extraLives = 0;
-		extraLifeAcquired = 5000;
-		bucket.animations.frame = 2;
-		difficulty = START_DIFFICULTY;
-		//setting collision mask to match the current number of buckets
-		bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
-		isGameOver = false;
-		isBetterScore = false;
-		savedScore = localStorage.getItem(localStorageName) == null ? {score: 0} : JSON.parse(localStorage.getItem(localStorageName));
-		highScore = savedScore.score;
+		initializeVariables();
+		adjustText();
+		adjustBucketCollisionMask();
+		loadHighScore();
 	}
+
 	bucket.canSwipe = true;
 
+	//after first click or touch
 	if (!isGameOn) {
-		//after clicking the first time the title and credits go away
-		game.add.tween(title).to({
-			 x: -100, 
-			 y: -200
-			}, 500, "Linear", true);
-		game.add.tween(credits).to({
-			x: 500, 
-			y: 700
-			}, 500, "Linear", true);
+		removeCredits();
 		isGameOn = true;		
 	}
 }
 
-function createBomb () {
+function initializeBomberMovement () {
+	bomber.isMoving = true;
+	bomber.animations.play("idle");
+}
+
+function setBombCount () {
+	bombs.bombCount = difficulty * BOMB_MULTIPLIER + START_BOMBS;
+}
+
+function setBombTimer () {
+	bombTimer = game.time.create(true);
+	bombTimer.repeat(200, bombs.bombCount, dropBomb, this);
+	bombTimer.start();
+}
+
+function removeCredits () {
+	game.add.tween(title).to({
+		x: -100, 
+		y: -200
+	   }, 500, "Linear", true);
+   game.add.tween(credits).to({
+	   x: 500, 
+	   y: 700
+	   }, 500, "Linear", true);
+}
+
+function dropBomb () {
 	game.throwSound.play();
 	//create a bomb, add it to group and send it flying down
 	var bomb = game.add.sprite(bomber.x, bomber.y + 8, "bomb");
@@ -272,10 +375,9 @@ function createBomb () {
 	}
 }
 
-//bomber bouncing
-function bounce (spr) {
-	if ((spr.x < 12 && spr.body.velocity.x < 0) || (spr.x > SCREEN_WIDTH - 12 && spr.body.velocity.x > 0)) {
-		spr.body.velocity.x *= -1;
+function bounceBomber () {
+	if ((bomber.x < 12 && bomber.body.velocity.x < 0) || (bomber.x > SCREEN_WIDTH - 12 && bomber.body.velocity.x > 0)) {
+		bomber.body.velocity.x *= -1;
 	}
 }
 
