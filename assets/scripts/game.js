@@ -228,7 +228,7 @@ function checkCollisions () {
 		checkHighScore();
 		adjustText();
 		checkExtraLife();		
-		bomb.destroy();
+		bomb.kill(); //changed destroy to kill
 	}, this);
 }
 
@@ -353,7 +353,11 @@ function removeCredits () {
 function dropBomb () {
 	game.throwSound.play();
 	//create a bomb, add it to group and send it flying down
-	var bomb = game.add.sprite(bomber.x, bomber.y + 8, "bomb");
+	var bomb = bombs.getFirstExists(false);
+	if (!bomb) {
+		bomb = game.add.sprite(0, 0, "bomb");
+	}
+	bomb.reset(bomber.x, bomber.y + 8);
 	game.physics.enable(bomb, Phaser.Physics.ARCADE);
 	bomb.body.velocity.y = 50 + difficulty;
 	bomb.animations.add("idle", [0, 1], 30, true);
@@ -382,39 +386,44 @@ function bounceBomber () {
 }
 
 function checkNextRound () {
-	if (bombs.length == 0 && bombs.bombCount <= 0 && isRoundOn) {
+	// if (bombs.length == 0 && bombs.bombCount <= 0 && isRoundOn) {
+	if (bombs.bombCount <= 0 && isRoundOn) {
 		isRoundOn = false;
 		bomber.isMoving = false;
 		if (difficulty <= 180) {
 			difficulty += DIFFICULTY_INCREASE;
 		}
 		bomber.body.velocity.x = 0;
-		if (isLosingLife) { 
-			isLosingLife = false;
-			bomber.animations.play("smiling");
-			game.kaboomSound.play();
-			if (bucket.animations.frame > 0) {
-				bucket.animations.frame --;
-				bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
-			} else {
-				isGameOver = true;
-				bucket.visible = false;
-				if (isBetterScore) {
-					highScoreText.flashing.resume();
-					scoreText.flashing.resume();
-					game.hiscoreSound.play();
-				}
-				highScore = Math.max(score, savedScore.score);
-				//highScore = 0; //debug
-                localStorage.setItem(localStorageName, JSON.stringify({
-                    score: highScore
-                }));
+	}
+	if (isLosingLife) { 
+		bombs.forEach (function (bomb) {
+			bomb.kill();
+		});
+		bombTimer.pause();
+		isLosingLife = false;
+		bomber.animations.play("smiling");
+		game.kaboomSound.play();
+		if (bucket.animations.frame > 0) {
+			bucket.animations.frame --;
+			bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
+		} else {
+			isGameOver = true;
+			bucket.visible = false;
+			if (isBetterScore) {
+				highScoreText.flashing.resume();
+				scoreText.flashing.resume();
+				game.hiscoreSound.play();
 			}
-			if (difficulty > 2 * DIFFICULTY_INCREASE) {
-				difficulty -= DIFFICULTY_INCREASE * 2;
-			} else {
-				difficulty = START_DIFFICULTY;
-			}
+			highScore = Math.max(score, savedScore.score);
+			//highScore = 0; //debug
+			localStorage.setItem(localStorageName, JSON.stringify({
+				score: highScore
+			}));
+		}
+		if (difficulty > 2 * DIFFICULTY_INCREASE) {
+			difficulty -= DIFFICULTY_INCREASE * 2;
+		} else {
+			difficulty = START_DIFFICULTY;
 		}
 	}
 }
@@ -422,16 +431,10 @@ function checkNextRound () {
 function checkBombs () {
 	bombs.forEach (function (bomb) {
 		if (bomb.y > SCREEN_HEIGHT) {
-			bomb.destroy();
+			bomb.kill();
+			bomb.y = 0;
 			isLosingLife = true;
+			bombs.bombCount = 0;
 		}
 	});
-	if (isLosingLife) {
-		bombs.forEach (function (bomb) {
-			bomb.destroy();
-			bombs.bombCount--;
-		});
-		bombTimer.pause();
-		bombs.bombCount = 0;
-	}
 }
