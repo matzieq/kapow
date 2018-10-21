@@ -52,7 +52,7 @@ var isGameOn = false;
 
 //STORAGE
 var savedScore;
-var localStorageName = "high_score";
+var localStorageName = "kapow_high_score";
 
 //TEXT OBJECTS
 var scoreText;
@@ -66,24 +66,8 @@ var credits;
 \******/
 
 function preload() {
-	game.load.spritesheet("bomber", "assets/sprites/bomber_strip2.png", 16, 32, 2);
-	game.load.spritesheet("bucket", "assets/sprites/bucket_strip3.png", 16, 32, 3);
-	game.load.spritesheet("bomb", "assets/sprites/bomb_strip2.png", 8, 8, 2);
-
-	game.load.image("grass", "assets/sprites/b_grass.png", 64, 64);
-
-	game.load.audio("throw", "assets/sounds/a_throw.ogg", "assets/sounds/a_throw.mp3");
-	game.load.audio("gulp", "assets/sounds/a_gulp.ogg", "assets/sounds/a_gulp.mp3");
-	game.load.audio("kaboom", "assets/sounds/a_kaboom.ogg", "assets/sounds/a_kaboom.mp3");
-	game.load.audio("extra", "assets/sounds/a_extra.ogg", "assets/sounds/a_extra.mp3");
-	game.load.audio("hiscore", "assets/sounds/a_hiscore.ogg", "assets/sounds/a_hiscore.mp3");
-
-	game.load.bitmapFont("font", "assets/fonts/font.png", "assets/fonts/font.fnt");
-
-	// enable crisp rendering
-	game.renderer.renderSession.roundPixels = true;
-	Phaser.Canvas.setImageRenderingCrisp(game.canvas);
-	game.stage.backgroundColor = "#00ccff";
+	loadAssets();
+	enableCrispRendering();
 }
 
 function create () {
@@ -115,6 +99,28 @@ function update () {
 /***********\
 | FUNCTIONS |
 \***********/
+
+function loadAssets () {
+	game.load.spritesheet("bomber", "assets/sprites/bomber_strip2.png", 16, 32, 2);
+	game.load.spritesheet("bucket", "assets/sprites/bucket_strip3.png", 16, 32, 3);
+	game.load.spritesheet("bomb", "assets/sprites/bomb_strip2.png", 8, 8, 2);
+
+	game.load.image("grass", "assets/sprites/b_grass.png", 64, 64);
+
+	game.load.audio("throw", ["assets/sounds/a_throw.ogg", "assets/sounds/a_throw.mp3"]);
+	game.load.audio("gulp", ["assets/sounds/a_gulp.ogg", "assets/sounds/a_gulp.mp3"]);
+	game.load.audio("kaboom", ["assets/sounds/a_kaboom.ogg", "assets/sounds/a_kaboom.mp3"]);
+	game.load.audio("extra", ["assets/sounds/a_extra.ogg", "assets/sounds/a_extra.mp3"]);
+	game.load.audio("hiscore", ["assets/sounds/a_hiscore.ogg", "assets/sounds/a_hiscore.mp3"]);
+
+	game.load.bitmapFont("font", "assets/fonts/font.png", "assets/fonts/font.fnt");
+}
+
+function enableCrispRendering () {
+	game.renderer.renderSession.roundPixels = true;
+	Phaser.Canvas.setImageRenderingCrisp(game.canvas);
+	game.stage.backgroundColor = "#00ccff";
+}
 
 function initializeVariables () {
 	//the current bucket frame is used both to display the correct number of buckets and as a life counter
@@ -189,7 +195,7 @@ function initializeBucketMovement () {
 
 function createBombs () {
 	bombs = game.add.group();
-    bombs.bombCount = difficulty * BOMB_MULTIPLIER + START_BOMBS; //this many per round
+	setBombCount();
 }
 
 function createScoreText () {
@@ -298,7 +304,7 @@ function move(pointer, x, y, click) {
     } else if (!game.device.desktop && bucket.canSwipe) {
 		//swipe movement
     	var swipeDistance = game.input.activePointer.position.x - game.input.activePointer.positionDown.x;
-	    	bucket.x = bucket.relativeX + swipeDistance * SWIPE_MULTIPLIER;
+		bucket.x = bucket.relativeX + swipeDistance * SWIPE_MULTIPLIER;
     }
 }
 
@@ -352,31 +358,29 @@ function removeCredits () {
 
 function dropBomb () {
 	game.throwSound.play();
-	//create a bomb, add it to group and send it flying down
+	//recycle or create a bomb, add it to group and send it flying down
 	var bomb = bombs.getFirstExists(false);
 	if (!bomb) {
 		bomb = game.add.sprite(0, 0, "bomb");
+		game.physics.enable(bomb, Phaser.Physics.ARCADE);
+		bomb.animations.add("idle", [0, 1], 30, true);
+		bomb.animations.play("idle");
+		bomb.anchor.setTo(0.5);
+		bombs.add(bomb);
 	}
 	bomb.reset(bomber.x, bomber.y + 8);
-	game.physics.enable(bomb, Phaser.Physics.ARCADE);
 	bomb.body.velocity.y = 50 + difficulty;
-	bomb.animations.add("idle", [0, 1], 30, true);
-	bomb.animations.play("idle");
-	bomb.anchor.setTo(0.5);
-	bombs.add(bomb);
 
-	//randomly change bomber movement direction
+	changeBomberMovementDirection();
+}
+
+function changeBomberMovementDirection () {
 	if (game.rnd.integerInRange(0, 1) === 1) {
 		bomber.body.velocity.x = 50 + difficulty;
 	} else {
 		bomber.body.velocity.x = -50 - difficulty;
 	}
-	bombs.bombCount--;			
-	
-	//this is to reset the bomb counter after the player loses a life
-	if (bombs.length == 0) {
-		bombs.bombCount = 0;
-	}
+	bombs.bombCount--;	
 }
 
 function bounceBomber () {
@@ -386,45 +390,68 @@ function bounceBomber () {
 }
 
 function checkNextRound () {
-	// if (bombs.length == 0 && bombs.bombCount <= 0 && isRoundOn) {
 	if (bombs.bombCount <= 0 && isRoundOn) {
-		isRoundOn = false;
-		bomber.isMoving = false;
-		if (difficulty <= 180) {
-			difficulty += DIFFICULTY_INCREASE;
-		}
-		bomber.body.velocity.x = 0;
+		endRound();
 	}
 	if (isLosingLife) { 
-		bombs.forEach (function (bomb) {
-			bomb.kill();
-		});
-		bombTimer.pause();
 		isLosingLife = false;
 		bomber.animations.play("smiling");
 		game.kaboomSound.play();
-		if (bucket.animations.frame > 0) {
-			bucket.animations.frame --;
-			bucket.body.setSize(bucket.width, bucket.height - (2-bucket.animations.frame) * 9 - 10, 0, (2-bucket.animations.frame) * 9 + 10);
-		} else {
-			isGameOver = true;
-			bucket.visible = false;
-			if (isBetterScore) {
-				highScoreText.flashing.resume();
-				scoreText.flashing.resume();
-				game.hiscoreSound.play();
-			}
-			highScore = Math.max(score, savedScore.score);
-			//highScore = 0; //debug
-			localStorage.setItem(localStorageName, JSON.stringify({
-				score: highScore
-			}));
+		destroyAllBombs();
+		reduceLives();		
+		adjustDifficulty();		
+	}
+}
+
+function destroyAllBombs () {
+	bombs.forEach (function (bomb) {
+		bomb.kill();
+	});
+	bombTimer.pause();
+}
+
+function endRound () {
+	isRoundOn = false;
+	bomber.isMoving = false;
+	if (difficulty <= 180) {
+		difficulty += DIFFICULTY_INCREASE;
+	}
+	bomber.body.velocity.x = 0;
+}
+
+function reduceLives () {
+	if (bucket.animations.frame > 0) { //the number of lives is kept in the animation frame. 
+		bucket.animations.frame --;
+		adjustBucketCollisionMask();
+	} else {
+		isGameOver = true;
+		bucket.visible = false;
+		if (isBetterScore) {
+			flashHighScore();
 		}
-		if (difficulty > 2 * DIFFICULTY_INCREASE) {
-			difficulty -= DIFFICULTY_INCREASE * 2;
-		} else {
-			difficulty = START_DIFFICULTY;
-		}
+		saveHighScore();
+	}
+}
+
+function flashHighScore () {
+	highScoreText.flashing.resume();
+	scoreText.flashing.resume();
+	game.hiscoreSound.play();
+}
+
+function saveHighScore () {
+	highScore = Math.max(score, savedScore.score);
+	//highScore = 0; //debug
+	localStorage.setItem(localStorageName, JSON.stringify({
+		score: highScore
+	}));
+}
+
+function adjustDifficulty () {
+	if (difficulty > 2 * DIFFICULTY_INCREASE) {
+		difficulty -= DIFFICULTY_INCREASE * 2;
+	} else {
+		difficulty = START_DIFFICULTY;
 	}
 }
 
